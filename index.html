@@ -52,7 +52,7 @@
             </div>
 
             <div id="step4" class="step-content">
-                <h2 class="text-6xl font-black text-indigo-600 mb-12 tracking-tight">Optimized Schedule</h2>
+                <h2 class="text-6xl font-black text-indigo-600 mb-12 tracking-tight uppercase">Optimized Weekly View</h2>
                 <div id="summary-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"></div>
             </div>
         </div>
@@ -64,7 +64,10 @@
                 <div class="w-16 h-2 bg-slate-200 rounded-full"></div>
                 <div class="w-16 h-2 bg-slate-200 rounded-full"></div>
             </div>
-            <button id="nextBtn" onclick="nextStep()" class="w-full md:w-auto px-20 py-6 bg-slate-900 text-white rounded-[2rem] font-black hover:bg-indigo-600 transition-all uppercase tracking-widest text-sm">Continue</button>
+            <div class="flex gap-4 w-full md:w-auto">
+                <button id="prevBtn" onclick="prevStep()" class="hidden px-10 py-6 bg-white border border-slate-200 text-slate-600 rounded-[2rem] font-black hover:bg-slate-50 transition-all uppercase tracking-widest text-sm italic">Back</button>
+                <button id="nextBtn" onclick="nextStep()" class="flex-grow md:flex-grow-0 px-20 py-6 bg-slate-900 text-white rounded-[2rem] font-black hover:bg-indigo-600 transition-all uppercase tracking-widest text-sm">Continue</button>
+            </div>
         </div>
     </div>
 
@@ -73,11 +76,9 @@
         const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
         let config = {};
 
-        // 0 = 06:00, 48 = 06:00 Next Day
         function formatT(v) {
-            let totalHalfHours = v;
-            let h = (6 + Math.floor(totalHalfHours / 2)) % 24;
-            let m = (totalHalfHours % 2 === 0) ? '00' : '30';
+            let h = (6 + Math.floor(v / 2)) % 24;
+            let m = (v % 2 === 0) ? '00' : '30';
             return h.toString().padStart(2, '0') + ':' + m;
         }
 
@@ -98,23 +99,115 @@
                         <input type="checkbox" id="c-${i}" checked class="w-6 h-6 rounded-lg accent-indigo-600">
                     </div>
                     <div class="space-y-4">
-                        <div class="grid grid-cols-2 gap-3 text-[10px] font-black uppercase text-slate-400">
-                            <span>Start</span><span>End</span>
-                        </div>
                         <div class="grid grid-cols-2 gap-3">
                             <select id="s-${i}" class="w-full p-3 bg-slate-50 rounded-xl font-bold">${genOpts(0, 47)}</select>
                             <select id="e-${i}" class="w-full p-3 bg-slate-50 rounded-xl font-bold">${genOpts(1, 48)}</select>
                         </div>
                         <select id="p-${i}" class="w-full p-3 bg-indigo-50 text-indigo-700 rounded-xl font-bold text-xs">
-                            <option value="1">Standard (30m)</option>
-                            <option value="2">Relaxed (1h)</option>
-                            <option value="0">Turbo (0m)</option>
+                            <option value="1">Standard (30m Gap)</option>
+                            <option value="2">Relaxed (1h Gap)</option>
+                            <option value="0">Turbo (No Gaps)</option>
                         </select>
                     </div>`;
                 cont.appendChild(div);
                 document.getElementById(`s-${i}`).value = 0;
-                document.getElementById(`e-${i}`).value = 32; // Default to 22:00
+                document.getElementById(`e-${i}`).value = 32;
             });
+        }
+
+        function updateAnchorEndOpts(startSelect) {
+            const endSelect = startSelect.parentElement.querySelector('.end');
+            const dayIdx = startSelect.closest('.anchor-item').querySelector('.day').value;
+            const startVal = parseInt(startSelect.value);
+            endSelect.innerHTML = genOpts(startVal + 1, config[dayIdx].end);
+        }
+
+        function addAnchor() {
+            const activeDayIndices = Object.keys(config).filter(k => config[k].active);
+            if (activeDayIndices.length === 0) return alert("Enable a day in Step 1 first");
+            
+            const d = document.createElement('div');
+            d.className = 'flex flex-wrap gap-4 bg-white p-6 rounded-[2rem] border-2 border-slate-50 items-center shadow-sm anchor-item';
+            
+            let dayOptions = activeDayIndices.map(i => `<option value="${i}">${days[i]}</option>`).join('');
+            
+            d.innerHTML = `
+                <input type="text" placeholder="Event Name" class="flex-grow p-2 font-black text-xl outline-none name">
+                <div class="flex gap-2 bg-slate-50 p-2 rounded-2xl">
+                    <select class="day font-bold text-xs bg-transparent outline-none" onchange="syncAnchorTimes(this)">${dayOptions}</select>
+                    <div class="w-[1px] bg-slate-200"></div>
+                    <select class="start font-bold text-xs bg-transparent outline-none" onchange="updateAnchorEndOpts(this)"></select>
+                    <span class="text-slate-300">-</span>
+                    <select class="end font-bold text-xs bg-transparent outline-none"></select>
+                </div>
+                <button onclick="this.parentElement.remove()" class="w-10 h-10 bg-rose-50 text-rose-500 rounded-full font-bold">✕</button>`;
+            
+            document.getElementById('anchors-list').insertBefore(d, document.getElementById('anchors-list').firstChild);
+            syncAnchorTimes(d.querySelector('.day'));
+        }
+
+        function syncAnchorTimes(daySelect) {
+            const dayIdx = daySelect.value;
+            const startSelect = daySelect.parentElement.querySelector('.start');
+            startSelect.innerHTML = genOpts(config[dayIdx].start, config[dayIdx].end - 1);
+            updateAnchorEndOpts(startSelect);
+        }
+
+        function addTask() {
+            const activeDayIndices = Object.keys(config).filter(k => config[k].active);
+            if (activeDayIndices.length === 0) return;
+            const d = document.createElement('div');
+            d.className = 'bg-white p-6 rounded-[2rem] border-2 border-slate-50 flex gap-4 items-center shadow-sm task-item';
+            let dayOptions = activeDayIndices.map(i => `<option value="${i}">${days[i]}</option>`).join('');
+            d.innerHTML = `
+                <input type="text" placeholder="Task Name" class="flex-grow p-2 font-black text-xl outline-none name">
+                <div class="flex gap-2 bg-slate-50 p-2 rounded-2xl">
+                    <select class="day font-bold text-xs bg-transparent outline-none" onchange="syncTaskDur(this)">${dayOptions}</select>
+                    <div class="w-[1px] bg-slate-200"></div>
+                    <select class="dur font-bold text-xs bg-transparent outline-none"></select>
+                </div>
+                <button onclick="this.parentElement.remove()" class="w-10 h-10 bg-rose-50 text-rose-500 rounded-full font-bold">✕</button>`;
+            document.getElementById('tasks-list').insertBefore(d, document.getElementById('addTaskBtn'));
+            syncTaskDur(d.querySelector('.day'));
+        }
+
+        function syncTaskDur(daySelect) {
+            const durSelect = daySelect.parentElement.querySelector('.dur');
+            const dayConf = config[daySelect.value];
+            let opts = '';
+            for(let i=1; i<=(dayConf.end - dayConf.start); i++) opts += `<option value="${i}">${i*30}m</option>`;
+            durSelect.innerHTML = opts;
+        }
+
+        function prevStep() {
+            if (currentStep > 1) {
+                document.getElementById(`step${currentStep}`).style.display = 'none';
+                currentStep--;
+                document.getElementById(`step${currentStep}`).style.display = 'block';
+                updateNav();
+            }
+        }
+
+        function nextStep() {
+            if (currentStep < 4) {
+                save();
+                document.getElementById(`step${currentStep}`).style.display = 'none';
+                currentStep++;
+                document.getElementById(`step${currentStep}`).style.display = 'block';
+                updateNav();
+                if (currentStep === 4) render();
+            } else {
+                location.reload();
+            }
+        }
+
+        function updateNav() {
+            const dots = document.getElementById('dots').children;
+            const nextBtn = document.getElementById('nextBtn');
+            const prevBtn = document.getElementById('prevBtn');
+            for (let i = 0; i < 4; i++) dots[i].className = `w-16 h-2 rounded-full ${i < currentStep ? 'bg-indigo-600' : 'bg-slate-200'}`;
+            prevBtn.style.display = currentStep > 1 ? 'block' : 'none';
+            nextBtn.innerText = currentStep === 4 ? 'Reset All' : 'Continue';
         }
 
         function save() {
@@ -128,87 +221,6 @@
                     };
                 }
             });
-        }
-
-        function addAnchor() {
-            const activeDayIndices = Object.keys(config).filter(k => config[k].active);
-            if (activeDayIndices.length === 0) return alert("Please enable at least one day in Step 1");
-            
-            const d = document.createElement('div');
-            d.className = 'flex flex-wrap gap-4 bg-white p-6 rounded-[2rem] border-2 border-slate-50 items-center shadow-sm anchor-item';
-            
-            let dayOptions = activeDayIndices.map(i => `<option value="${i}">${days[i]}</option>`).join('');
-            
-            d.innerHTML = `
-                <input type="text" placeholder="Event Name" class="flex-grow p-2 font-black text-xl outline-none name">
-                <div class="flex gap-2 bg-slate-50 p-2 rounded-2xl">
-                    <select class="day font-bold text-xs bg-transparent outline-none" onchange="updateTimeLimits(this)">${dayOptions}</select>
-                    <div class="w-[1px] bg-slate-200"></div>
-                    <select class="start font-bold text-xs bg-transparent outline-none"></select>
-                    <span class="text-slate-300">-</span>
-                    <select class="end font-bold text-xs bg-transparent outline-none"></select>
-                </div>
-                <button onclick="this.parentElement.remove()" class="w-10 h-10 bg-rose-50 text-rose-500 rounded-full font-bold">✕</button>`;
-            
-            document.getElementById('anchors-list').insertBefore(d, document.getElementById('anchors-list').firstChild);
-            updateTimeLimits(d.querySelector('.day'));
-        }
-
-        function updateTimeLimits(daySelect) {
-            const dayIdx = daySelect.value;
-            const startSelect = daySelect.parentElement.querySelector('.start');
-            const endSelect = daySelect.parentElement.querySelector('.end');
-            const dayConf = config[dayIdx];
-            
-            startSelect.innerHTML = genOpts(dayConf.start, dayConf.end - 1);
-            endSelect.innerHTML = genOpts(dayConf.start + 1, dayConf.end);
-        }
-
-        function addTask() {
-            const activeDayIndices = Object.keys(config).filter(k => config[k].active);
-            if (activeDayIndices.length === 0) return;
-
-            const d = document.createElement('div');
-            d.className = 'bg-white p-6 rounded-[2rem] border-2 border-slate-50 flex gap-4 items-center shadow-sm task-item';
-            
-            let dayOptions = activeDayIndices.map(i => `<option value="${i}">${days[i]}</option>`).join('');
-
-            d.innerHTML = `
-                <input type="text" placeholder="Task Name" class="flex-grow p-2 font-black text-xl outline-none name">
-                <div class="flex gap-2 bg-slate-50 p-2 rounded-2xl">
-                    <select class="day font-bold text-xs bg-transparent outline-none" onchange="updateTaskLimits(this)">${dayOptions}</select>
-                    <div class="w-[1px] bg-slate-200"></div>
-                    <select class="dur font-bold text-xs bg-transparent outline-none"></select>
-                </div>
-                <button onclick="this.parentElement.remove()" class="w-10 h-10 bg-rose-50 text-rose-500 rounded-full font-bold">✕</button>`;
-            
-            document.getElementById('tasks-list').insertBefore(d, document.getElementById('addTaskBtn'));
-            updateTaskLimits(d.querySelector('.day'));
-        }
-
-        function updateTaskLimits(daySelect) {
-            const dayIdx = daySelect.value;
-            const durSelect = daySelect.parentElement.querySelector('.dur');
-            const dayConf = config[dayIdx];
-            const maxHalfHours = dayConf.end - dayConf.start;
-            
-            let opts = '';
-            for(let i=1; i<=maxHalfHours; i++) {
-                opts += `<option value="${i}">${i*30}m (${(i/2).toFixed(1)}h)</option>`;
-            }
-            durSelect.innerHTML = opts;
-        }
-
-        function nextStep() {
-            if (currentStep < 4) {
-                save();
-                document.getElementById(`step${currentStep}`).style.display = 'none';
-                currentStep++;
-                document.getElementById(`step${currentStep}`).style.display = 'block';
-                const dots = document.getElementById('dots').children;
-                for (let i = 0; i < 4; i++) dots[i].className = `w-16 h-2 rounded-full ${i < currentStep ? 'bg-indigo-600' : 'bg-slate-200'}`;
-                if (currentStep === 4) render();
-            }
         }
 
         function render() {
@@ -234,19 +246,15 @@
                 tasks.forEach(task => {
                     let ok = false;
                     while (cur + task.d <= config[idx].end) {
-                        let hit = anchors.find(a => a.s < (cur + task.d) && a.e > cur);
-                        if (!hit) {
-                            let nA = anchors.find(a => a.s >= cur);
-                            if (nA && (cur + task.d + config[idx].pace > nA.s)) {
-                                cur = nA.e + config[idx].pace;
-                                continue;
-                            }
+                        // Anchors are allowed to overlap with each other, but flexible tasks must find a free slot
+                        let hitAnchor = anchors.find(a => a.s < (cur + task.d) && a.e > cur);
+                        if (!hitAnchor) {
                             items.push({ n: task.n, s: cur, e: cur + task.d, t: 'T' });
                             cur += task.d + config[idx].pace;
                             ok = true;
                             break;
                         } else {
-                            cur = hit.e + config[idx].pace;
+                            cur = hitAnchor.e + config[idx].pace;
                         }
                     }
                     if (!ok) errs.push(task.n);
@@ -254,16 +262,16 @@
 
                 const card = document.createElement('div');
                 card.className = 'bg-white p-8 rounded-[3rem] shadow-xl border border-slate-50 flex flex-col gap-4';
-                card.innerHTML = `<h3 class="font-black text-2xl text-slate-800 mb-2">${day}</h3>` +
+                card.innerHTML = `<h3 class="font-black text-2xl text-slate-800 mb-2 underline decoration-indigo-200">${day}</h3>` +
                     [...items, ...anchors].sort((a, b) => a.s - b.s).map(i => `
-                    <div class="flex flex-col gap-1 p-5 rounded-[1.5rem] ${i.t === 'A' ? 'bg-slate-50 border text-slate-600' : 'bg-indigo-600 text-white shadow-lg shadow-indigo-100'}">
-                        <span class="text-[10px] font-black uppercase opacity-60">${i.t === 'A' ? 'Fixed' : 'Flexible'}</span>
+                    <div class="flex flex-col gap-1 p-5 rounded-[1.5rem] ${i.t === 'A' ? 'bg-slate-100 border text-slate-700' : 'bg-indigo-600 text-white shadow-lg'}">
+                        <span class="text-[9px] font-black uppercase opacity-50 tracking-tighter">${i.t === 'A' ? 'Fixed Anchor' : 'Optimized Slot'}</span>
                         <div class="flex justify-between items-center italic">
-                            <span class="font-bold text-sm">${i.n}</span>
-                            <span class="font-black text-xs">${formatT(i.s)} - ${formatT(i.e)}</span>
+                            <span class="font-bold text-sm leading-tight">${i.n}</span>
+                            <span class="font-black text-xs whitespace-nowrap ml-2">${formatT(i.s)} - ${formatT(i.e)}</span>
                         </div>
                     </div>`).join('') +
-                    errs.map(e => `<div class="p-4 bg-rose-50 text-rose-600 text-[10px] font-black rounded-2xl mt-2 flex items-center gap-2"><span>⚠️</span> No space for: ${e}</div>`).join('');
+                    errs.map(e => `<div class="p-4 bg-rose-50 text-rose-600 text-[10px] font-black rounded-2xl mt-2 border border-rose-100">✕ Overflow: ${e}</div>`).join('');
                 cont.appendChild(card);
             });
         }
