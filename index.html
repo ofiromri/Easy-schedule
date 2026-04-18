@@ -101,7 +101,7 @@
                     </div>
                     <div class="space-y-4">
                         <div class="grid grid-cols-2 gap-3">
-                            <select id="s-${i}" onchange="updateDayEndOpts(this)" class="w-full p-3 bg-slate-50 rounded-xl font-bold">${genOpts(0, 47)}</select>
+                            <select id="s-${i}" onchange="updateDayEndOpts(${i})" class="w-full p-3 bg-slate-50 rounded-xl font-bold">${genOpts(0, 47)}</select>
                             <select id="e-${i}" class="w-full p-3 bg-slate-50 rounded-xl font-bold">${genOpts(1, 48)}</select>
                         </div>
                         <select id="p-${i}" class="w-full p-3 bg-indigo-50 text-indigo-700 rounded-xl font-bold text-xs">
@@ -112,26 +112,29 @@
                     </div>`;
                 cont.appendChild(div);
                 document.getElementById(`s-${i}`).value = 0;
-                updateDayEndOpts(document.getElementById(`s-${i}`));
+                updateDayEndOpts(i);
                 document.getElementById(`e-${i}`).value = 32;
             });
         }
 
-        function updateDayEndOpts(startSelect) {
-            const endSelect = startSelect.parentElement.querySelector('select[id^="e-"]');
+        function updateDayEndOpts(idx) {
+            const startSelect = document.getElementById(`s-${idx}`);
+            const endSelect = document.getElementById(`e-${idx}`);
             const startVal = parseInt(startSelect.value);
-            const currentEnd = parseInt(endSelect.value);
+            const prevEnd = parseInt(endSelect.value);
             endSelect.innerHTML = genOpts(startVal + 1, 48);
-            if (currentEnd > startVal) endSelect.value = currentEnd;
+            if (prevEnd > startVal) endSelect.value = prevEnd;
+            else endSelect.value = startVal + 1;
         }
 
         function updateAnchorEndOpts(startSelect) {
             const endSelect = startSelect.parentElement.querySelector('.end');
             const dayIdx = startSelect.closest('.anchor-item').querySelector('.day').value;
             const startVal = parseInt(startSelect.value);
-            const currentEnd = parseInt(endSelect.value);
+            const prevEnd = parseInt(endSelect.value);
             endSelect.innerHTML = genOpts(startVal + 1, config[dayIdx].end);
-            if (currentEnd > startVal) endSelect.value = currentEnd;
+            if (prevEnd > startVal && prevEnd <= config[dayIdx].end) endSelect.value = prevEnd;
+            else endSelect.value = startVal + 1;
         }
 
         function syncAnchorTimes(daySelect) {
