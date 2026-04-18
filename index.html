@@ -67,6 +67,7 @@
             <div class="flex gap-4 w-full md:w-auto">
                 <button id="prevBtn" onclick="prevStep()" class="hidden px-10 py-6 bg-white border border-slate-200 text-slate-600 rounded-[2rem] font-black hover:bg-slate-50 transition-all uppercase tracking-widest text-sm italic">Back</button>
                 <button id="nextBtn" onclick="nextStep()" class="flex-grow md:flex-grow-0 px-20 py-6 bg-slate-900 text-white rounded-[2rem] font-black hover:bg-indigo-600 transition-all uppercase tracking-widest text-sm">Continue</button>
+                <button id="resetBtn" onclick="location.reload()" class="hidden px-10 py-6 bg-rose-500 text-white rounded-[2rem] font-black hover:bg-rose-600 transition-all uppercase tracking-widest text-sm italic">Start Over</button>
             </div>
         </div>
     </div>
@@ -100,7 +101,7 @@
                     </div>
                     <div class="space-y-4">
                         <div class="grid grid-cols-2 gap-3">
-                            <select id="s-${i}" class="w-full p-3 bg-slate-50 rounded-xl font-bold">${genOpts(0, 47)}</select>
+                            <select id="s-${i}" onchange="updateDayEndOpts(this)" class="w-full p-3 bg-slate-50 rounded-xl font-bold">${genOpts(0, 47)}</select>
                             <select id="e-${i}" class="w-full p-3 bg-slate-50 rounded-xl font-bold">${genOpts(1, 48)}</select>
                         </div>
                         <select id="p-${i}" class="w-full p-3 bg-indigo-50 text-indigo-700 rounded-xl font-bold text-xs">
@@ -111,26 +112,41 @@
                     </div>`;
                 cont.appendChild(div);
                 document.getElementById(`s-${i}`).value = 0;
+                updateDayEndOpts(document.getElementById(`s-${i}`));
                 document.getElementById(`e-${i}`).value = 32;
             });
+        }
+
+        function updateDayEndOpts(startSelect) {
+            const endSelect = startSelect.parentElement.querySelector('select[id^="e-"]');
+            const startVal = parseInt(startSelect.value);
+            const currentEnd = parseInt(endSelect.value);
+            endSelect.innerHTML = genOpts(startVal + 1, 48);
+            if (currentEnd > startVal) endSelect.value = currentEnd;
         }
 
         function updateAnchorEndOpts(startSelect) {
             const endSelect = startSelect.parentElement.querySelector('.end');
             const dayIdx = startSelect.closest('.anchor-item').querySelector('.day').value;
             const startVal = parseInt(startSelect.value);
+            const currentEnd = parseInt(endSelect.value);
             endSelect.innerHTML = genOpts(startVal + 1, config[dayIdx].end);
+            if (currentEnd > startVal) endSelect.value = currentEnd;
+        }
+
+        function syncAnchorTimes(daySelect) {
+            const dayIdx = daySelect.value;
+            const startSelect = daySelect.parentElement.querySelector('.start');
+            startSelect.innerHTML = genOpts(config[dayIdx].start, config[dayIdx].end - 1);
+            updateAnchorEndOpts(startSelect);
         }
 
         function addAnchor() {
             const activeDayIndices = Object.keys(config).filter(k => config[k].active);
             if (activeDayIndices.length === 0) return alert("Enable a day in Step 1 first");
-            
             const d = document.createElement('div');
             d.className = 'flex flex-wrap gap-4 bg-white p-6 rounded-[2rem] border-2 border-slate-50 items-center shadow-sm anchor-item';
-            
             let dayOptions = activeDayIndices.map(i => `<option value="${i}">${days[i]}</option>`).join('');
-            
             d.innerHTML = `
                 <input type="text" placeholder="Event Name" class="flex-grow p-2 font-black text-xl outline-none name">
                 <div class="flex gap-2 bg-slate-50 p-2 rounded-2xl">
@@ -141,16 +157,8 @@
                     <select class="end font-bold text-xs bg-transparent outline-none"></select>
                 </div>
                 <button onclick="this.parentElement.remove()" class="w-10 h-10 bg-rose-50 text-rose-500 rounded-full font-bold">✕</button>`;
-            
             document.getElementById('anchors-list').insertBefore(d, document.getElementById('anchors-list').firstChild);
             syncAnchorTimes(d.querySelector('.day'));
-        }
-
-        function syncAnchorTimes(daySelect) {
-            const dayIdx = daySelect.value;
-            const startSelect = daySelect.parentElement.querySelector('.start');
-            startSelect.innerHTML = genOpts(config[dayIdx].start, config[dayIdx].end - 1);
-            updateAnchorEndOpts(startSelect);
         }
 
         function addTask() {
@@ -196,8 +204,6 @@
                 document.getElementById(`step${currentStep}`).style.display = 'block';
                 updateNav();
                 if (currentStep === 4) render();
-            } else {
-                location.reload();
             }
         }
 
@@ -205,9 +211,11 @@
             const dots = document.getElementById('dots').children;
             const nextBtn = document.getElementById('nextBtn');
             const prevBtn = document.getElementById('prevBtn');
+            const resetBtn = document.getElementById('resetBtn');
             for (let i = 0; i < 4; i++) dots[i].className = `w-16 h-2 rounded-full ${i < currentStep ? 'bg-indigo-600' : 'bg-slate-200'}`;
             prevBtn.style.display = currentStep > 1 ? 'block' : 'none';
-            nextBtn.innerText = currentStep === 4 ? 'Reset All' : 'Continue';
+            nextBtn.style.display = currentStep === 4 ? 'none' : 'block';
+            resetBtn.style.display = currentStep === 4 ? 'block' : 'none';
         }
 
         function save() {
@@ -246,7 +254,6 @@
                 tasks.forEach(task => {
                     let ok = false;
                     while (cur + task.d <= config[idx].end) {
-                        // Anchors are allowed to overlap with each other, but flexible tasks must find a free slot
                         let hitAnchor = anchors.find(a => a.s < (cur + task.d) && a.e > cur);
                         if (!hitAnchor) {
                             items.push({ n: task.n, s: cur, e: cur + task.d, t: 'T' });
